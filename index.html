@@ -2,28 +2,168 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Circle Collision Animation</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Liquid Sphere Animation</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* スクロールバーを非表示 */
+            background-color: black; /* 初期背景色 */
+        }
+        canvas {
+            display: block; /* ブロック要素として表示 */
+        }
+    </style>
 </head>
 <body>
-    <div class="wrapper">
-        <div class="circlesWrapper">
-            <div class="circle circle1"></div>
-            <div class="circle circle2"></div>
-            <div class="circle circle3"></div>
-            <div class="circle circle4"></div>
-            <div class="circle circle5"></div>
-            <div class="circle circle6"></div>
-            <div class="circle circle7"></div>
-            <div class="circle circle8"></div>
-            <div class="circle circle9"></div>
-            <div class="circle circle10"></div>
-            <div class="circle circle11"></div>
-            <div class="circle circle12"></div>
-        </div>
-    </div>
-    <script src="script.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.0/p5.js"></script>
+    <script>
+        let spheres = []; // 球の情報を保存する配列
+        let minRadius = 30; // 球の最小半径
+        let maxRadius = 80; // 球の最大半径
+        let waveAmplitude = 20; // 波の振幅
+        let waveFrequency = 0.1; // 波の周波数
+        let isDragging = false; // ドラッグ中かどうかのフラグ
+        let lastMouseX, lastMouseY; // 最後のマウス位置
+        let rotationX = 0; // X軸回転
+        let rotationY = 0; // Y軸回転
+        let cameraDistance = 400; // カメラの距離
+        let startTime; // アニメーションの開始時間
+        let duration = 60000; // 1分間 (60000ミリ秒)
+        
+        // 球の最大数
+        const maxSpheres = 40;
+
+        function setup() {
+            createCanvas(windowWidth, windowHeight, WEBGL); // ウィンドウサイズでキャンバスを作成
+            noStroke(); // 球の輪郭を描かない設定
+            startTime = millis(); // 開始時間を記録
+        }
+
+        function draw() {
+            let elapsedTime = millis() - startTime; // 経過時間を計算
+            let progress = (elapsedTime % duration) / duration; // 進行状況を0-1の範囲に正規化
+
+            // 背景色の明るさを計算
+            let bgColorValue = map(sin(progress * TWO_PI), -1, 1, 0, 255); // サイン波で明るさを変更
+            background(bgColorValue); // 背景色を設定
+
+            // カメラの位置を設定（中心に配置）
+            let camX = cameraDistance * sin(rotationY) * cos(rotationX);
+            let camY = cameraDistance * sin(rotationX);
+            let camZ = cameraDistance * cos(rotationY) * cos(rotationX);
+            camera(camX, camY, camZ, 0, 0, 0, 0, 1, 0); // カメラの位置を更新
+
+            // 球の生成数を計算
+            let targetSpheres = Math.floor(maxSpheres * Math.sin(progress * PI)); // サイン波で0から40に変化
+            let currentSpheres = spheres.length;
+
+            // 球を自然発生させる
+            while (currentSpheres < targetSpheres) { // 現在の球の数がターゲットに満たない場合
+                let newSphere = {
+                    position: createVector(random(-width / 2, width / 2), random(-height / 2, height / 2), random(-300, 300)),
+                    scale: 0, // 初期スケールを0に設定
+                    direction: 1, // 拡大の方向
+                    lifetime: random(60, 120), // 存在時間
+                    color: [random(255), random(255), random(255), 100] // ランダムな色を設定
+                };
+                spheres.push(newSphere); // 新しい球を配列に追加
+                currentSpheres++; // 現在の球の数を更新
+            }
+
+            // 球の更新と描画
+            for (let i = spheres.length - 1; i >= 0; i--) {
+                let sphere = spheres[i];
+
+                // 球のサイズを変化させる
+                sphere.scale += 0.02 * sphere.direction; // スケールを更新
+                if (sphere.scale > 1.5) {
+                    sphere.direction = -1; // 拡大から収縮に変更
+                } else if (sphere.scale < 0) {
+                    spheres.splice(i, 1); // 球が消滅する
+                    continue;
+                }
+
+                // 現在の半径を計算
+                let radius = minRadius + (maxRadius - minRadius) * sphere.scale;
+
+                // 背景が暗い時は球を描画しない
+                if (bgColorValue < 0) {
+                    continue; // 背景が暗い場合は描画をスキップ
+                }
+
+                drawLiquidSphere(radius, sphere.position, sphere.color); // 液体のような球を描画
+            }
+
+            // カメラの回転を設定している
+            rotateX(rotationX); // X軸の回転を適用
+            rotateY(rotationY); // Y軸の回転を適用
+        }
+
+        // 液状のような球を描画する関数
+        function drawLiquidSphere(radius, position, color) {
+            let numLongitudes = 20; // 経度の分割数
+            let numLatitudes = 20; // 緯度の分割数
+
+            push(); // 現在の座標系を保存
+            translate(position.x, position.y, position.z); // 球の位置に移動
+            fill(color); // ランダムな色を適用
+            beginShape(TRIANGLES); // 三角形で描画を開始
+
+            for (let lat = 0; lat < numLatitudes; lat++) {
+                let theta1 = map(lat, 0, numLatitudes, 0, PI); // 緯度角
+                let theta2 = map(lat + 1, 0, numLatitudes, 0, PI); // 次の緯度角
+
+                for (let lon = 0; lon < numLongitudes; lon++) {
+                    let phi = map(lon, 0, numLongitudes, 0, TWO_PI); // 経度角
+
+                    // 球の表面の点を計算
+                    let x1 = radius * sin(theta1) * cos(phi);
+                    let y1 = radius * sin(theta1) * sin(phi);
+                    let z1 = radius * cos(theta1) + sin(frameCount * waveFrequency + lon) * waveAmplitude;
+
+                    let x2 = radius * sin(theta2) * cos(phi);
+                    let y2 = radius * sin(theta2) * sin(phi);
+                    let z2 = radius * cos(theta2) + sin(frameCount * waveFrequency + lon) * waveAmplitude;
+
+                    // 頂点を指定
+                    vertex(x1, y1, z1);
+                    vertex(x2, y2, z2);
+                    vertex(x1, y1, z1 + waveAmplitude * sin(lon * waveFrequency + frameCount * 0.1));
+                }
+            }
+            endShape(); // 描画を終了
+            pop(); // 保存した座標系に戻る
+        }
+
+        // マウスが押されたときにドラッグを開始
+        function mousePressed() {
+            isDragging = true;
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+        }
+
+        // マウスが離されたときにドラッグを終了
+        function mouseReleased() {
+            isDragging = false;
+        }
+
+        // マウスが動いている間の処理
+        function mouseDragged() {
+            if (isDragging) {
+                let deltaX = mouseX - lastMouseX;
+                let deltaY = mouseY - lastMouseY;
+                rotationY += deltaX * 0.01; // Y軸の回転
+                rotationX += deltaY * 0.01; // X軸の回転
+                lastMouseX = mouseX; // 最後のマウス位置を更新
+                lastMouseY = mouseY; // 最後のマウス位置を更新
+            }
+        }
+
+        // ウィンドウのリサイズ時にキャンバスのサイズを調整
+        function windowResized() {
+            resizeCanvas(windowWidth, windowHeight);
+        }
+    </script>
 </body>
 </html>
