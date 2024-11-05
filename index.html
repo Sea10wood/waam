@@ -62,7 +62,9 @@
                     lifetime: random(60, 120),
                     colorStart: [random(255), random(255), random(255), 100],
                     colorEnd: [random(255), random(255), random(255), 100],
-                    isTouched: false
+                    isTouched: false,
+                    isFading: false,
+                    alpha: 255  
                 };
                 spheres.push(newSphere);
                 currentSpheres++;
@@ -71,12 +73,12 @@
             for (let i = spheres.length - 1; i >= 0; i--) {
                 let sphere = spheres[i];
 
-                if (!sphere.isShrinking) {
+                if (!sphere.isShrinking && !sphere.isFading) {
                     sphere.scale += 0.02;
                     if (sphere.scale >= 1.5) {
                         sphere.isShrinking = true;
                     }
-                } else {
+                } else if (sphere.isShrinking) {
                     sphere.scale -= 0.02;
                     if (sphere.scale <= 0) {
                         spheres.splice(i, 1);
@@ -86,18 +88,29 @@
 
                 let radius = minRadius + (maxRadius - minRadius) * sphere.scale;
 
-                let colorProgress = sphere.isShrinking ? sphere.scale : 1 - sphere.scale;
-                let color = [
-                    lerp(sphere.colorStart[0], sphere.colorEnd[0], colorProgress),
-                    lerp(sphere.colorStart[1], sphere.colorEnd[1], colorProgress),
-                    lerp(sphere.colorStart[2], sphere.colorEnd[2], colorProgress),
-                    100
-                ];
-
-                if (sphere.isTouched) {
+                if (sphere.isFading) {
+                    sphere.alpha -= 1; 
+                    if (sphere.alpha <= 0) {
+                        spheres.splice(i, 1);
+                        continue;
+                    }
+                    let color = [sphere.colorStart[0], sphere.colorStart[1], sphere.colorStart[2], sphere.alpha];
                     drawSolidSphere(radius, sphere.position, color);
                 } else {
-                    drawLiquidSphere(radius, sphere.position, color);
+                    let colorProgress = sphere.isShrinking ? sphere.scale : 1 - sphere.scale;
+                    let color = [
+                        lerp(sphere.colorStart[0], sphere.colorEnd[0], colorProgress),
+                        lerp(sphere.colorStart[1], sphere.colorEnd[1], colorProgress),
+                        lerp(sphere.colorStart[2], sphere.colorEnd[2], colorProgress),
+                        100
+                    ];
+
+                    if (sphere.isTouched) {
+                        sphere.isFading = true;  // タッチされたらフェードアウトを開始
+                        drawSolidSphere(radius, sphere.position, color);
+                    } else {
+                        drawLiquidSphere(radius, sphere.position, color);
+                    }
                 }
             }
 
